@@ -1,0 +1,161 @@
+version: "2.4"
+
+services:
+  dnsdist:
+    image: "tcely/dnsdist"
+    restart: "unless-stopped"
+    hostname: dnsdist.ingenierilinux.com
+    networks:
+      pdns:
+        ipv4_address: 192.168.17.10
+    tty: true
+    stdin_open: true
+    command:
+      ["--disable-syslog","--uid","dnsdist","--gid","dnsdist","--verbose"]
+    volumes:
+      - ./dnsdist/:/etc/dnsdist/
+    expose:
+      - "53"
+      - "53/udp"
+    ports:
+      - "127.0.0.1:53:53"
+      - "127.0.0.1:53:53/udp"  
+
+  pdns-recursor:
+    image: pschiffe/pdns-recursor:${RECURSOR_TAG:-latest}
+    restart: "unless-stopped"
+    hostname: dns.ingenierilinux.com
+    networks:
+      pdns:
+        ipv4_address: 192.168.17.11
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - PDNS_forward_zones=ingenierialinux.com=192.168.17.20
+  
+  mariadb:
+    image: mariadb:10.5
+    restart: "unless-stopped"
+    hostname: mysql.ingenierilinux.com
+    networks:
+      pdns:
+        ipv4_address: 192.168.17.12
+        aliases:
+          - db
+          - mysql
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./mariadb:/var/lib/mysql:z 
+    environment:
+      - MYSQL_ROOT_PASSWORD=MY_PASSWORD
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]   
+      timeout: 10s
+      retries: 5
+
+  phpmyadmin: 
+    image: phpmyadmin/phpmyadmin:5
+    hostname: phpmyadmin.ingenierilinux.com
+    networks:
+      pdns:
+        ipv4_address: 192.168.17.14
+    ports:
+      - 8988:80
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+
+  pdns-master:
+    image: pschiffe/pdns-mysql:${PDNS_MYSQL_TAG:-latest}
+    restart: "unless-stopped"
+    hostname: ns1.ingenierilinux.com 
+    networks:
+      pdns:
+        ipv4_address: 192.168.17.20
+        aliases:
+          - pdns
+    extra_hosts:
+      - "ns1.ingenierialinux.com:192.168.17.20"
+      - "ns2.ingenierialinux.com:192.168.17.21"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - PDNS_gmysql_password=MY_PASSWORD
+      - PDNS_master=yes
+      - PDNS_api=yes
+      - PDNS_api_key=secret
+      - PDNS_webserver=yes
+      - PDNS_webserver_address=0.0.0.0
+      - PDNS_webserver_allow_from=192.168.17.0/24
+      - PDNS_version_string=anonymous
+      - PDNS_default_ttl=1500
+      - PDNS_allow_axfr_ips=192.168.17.21
+      - PDNS_only_notify=192.168.17.21
+    depends_on:
+      - mariadb
+
+  pdns-slave:
+    image: pschiffe/pdns-mysql:${PDNS_MYSQL_TAG:-latest}
+    hostname: ns2.ingenierialinux.com
+    networks:
+      pdns:
+        ipv4_address: 192.168.17.21
+    extra_hosts:
+      - "ns1.ingenierialinux.com:192.168.17.20"
+      - "ns2.ingenierialinux.com:192.168.17.21"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro     
+    environment:        
+      - PDNS_gmysql_password=MY_PASSWORD
+      - PDNS_gmysql_dbname=powerdnsslave 
+      - PDNS_slave=yes
+      - PDNS_superslave=yes
+      - PDNS_webserver=yes
+      - PDNS_webserver_address=0.0.0.0
+      - PDNS_webserver_allow_from=192.168.17.0/16
+      - PDNS_version_string=anonymous
+      - PDNS_disable_axfr=yes
+      - PDNS_allow_notify_from=192.168.17.20
+      - SUPERMASTER_IPS=192.168.17.20
+    depends_on:
+      - mariadb
+      - pdns-master
+
+  pdns-admin-uwsgi:
+    image: pschiffe/pdns-admin-uwsgi:ngoduykhanh
+    hostname: uwsgi.ingenierialinux.com
+    networks:
+      pdns:
+        ipv4_address: 192.168.17.15  
+        aliases:
+          - pdns-admin-uwsgi  
+    volumes:
+        - /etc/localtime:/etc/localtime:ro
+    environment:
+      - PDNS_ADMIN_SQLA_DB_PASSWORD='MY_PASSWORD'
+      - PDNS_API_KEY=secret
+    depends_on:
+        - mariadb
+        - pdns-master
+    
+  pdns-admin-static:
+    image: pschiffe/pdns-admin-static:ngoduykhanh  
+    hostname: static.ingenierialinux.com
+    networks:
+      pdns:  
+        ipv4_address: 192.168.17.16
+    ports:
+      - "8089:80"
+    volumes:
+        - /etc/localtime:/etc/localtime:ro 
+    depends_on:
+      - pdns-admin-uwsgi
+
+networks:
+  pdns:  
+    ipam:
+      config:
+        - subnet: 192.168.17.0./24
+          gateway: 192.168.17.1
+volumes:
+  mariadb:              
+
