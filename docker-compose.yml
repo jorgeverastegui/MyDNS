@@ -154,7 +154,7 @@ networks:
   pdns:  
     ipam:
       config:
-        - subnet: 192.168.17.0./24
+        - subnet: 192.168.17.0/24
           gateway: 192.168.17.1
 volumes:
   mariadb:              
