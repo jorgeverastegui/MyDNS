@@ -1,26 +1,7 @@
 version: "2.4"
 
 services:
-  dnsdist:
-    image: "tcely/dnsdist"
-    restart: "unless-stopped"
-    hostname: dnsdist.ingenierilinux.com
-    networks:
-      pdns:
-        ipv4_address: 192.168.17.10
-    tty: true
-    stdin_open: true
-    command:
-      ["--disable-syslog","--uid","dnsdist","--gid","dnsdist","--verbose"]
-    volumes:
-      - ./dnsdist/:/etc/dnsdist/
-    expose:
-      - "53"
-      - "53/udp"
-    ports:
-      - "127.0.0.1:53:53"
-      - "127.0.0.1:53:53/udp"  
-
+  
   pdns-recursor:
     image: pschiffe/pdns-recursor:${RECURSOR_TAG:-latest}
     restart: "unless-stopped"
@@ -149,6 +130,25 @@ services:
         - /etc/localtime:/etc/localtime:ro 
     depends_on:
       - pdns-admin-uwsgi
+      
+dnsdist:
+    image: "tcely/dnsdist"
+    restart: "unless-stopped"
+    hostname: dnsdist.ingenierilinux.com
+    networks:
+      pdns:
+        ipv4_address: 192.168.17.10
+    tty: true
+    stdin_open: true
+    command:
+      ["--disable-syslog","--uid","dnsdist","--gid","dnsdist","--verbose"]
+    volumes:
+      - ./dnsdist/:/etc/dnsdist/
+    ports:
+      - "53:53"
+      - "53:53/udp"  
+    depends_on:
+      - pdns-recursor  
 
 networks:
   pdns:  
