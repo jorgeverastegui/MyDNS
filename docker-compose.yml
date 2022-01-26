@@ -15,7 +15,7 @@ services:
       - PDNS_forward_zones=ingenierialinux.com=192.168.17.20
   
   mariadb:
-    image: mariadb:10.5
+    image: mariadb:10.6
     restart: "unless-stopped"
     hostname: mysql.ingenierilinux.com
     networks:
@@ -69,6 +69,7 @@ services:
       - PDNS_webserver_allow_from=192.168.17.0/24
       - PDNS_version_string=anonymous
       - PDNS_default_ttl=1500
+      - PDNS_default_soa_content=ns.@ hostmaster.@ 2022010101 10800 3600 604800 3600 
       - PDNS_allow_axfr_ips=192.168.17.21
       - PDNS_only_notify=192.168.17.21
     depends_on:
@@ -113,6 +114,7 @@ services:
         - /etc/localtime:/etc/localtime:ro
     environment:
       - PDNS_ADMIN_SQLA_DB_PASSWORD='MY_PASSWORD'
+      - PDNS_VERSION=4.5
       - PDNS_API_KEY=secret
     depends_on:
         - mariadb
